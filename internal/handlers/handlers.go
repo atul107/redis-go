@@ -2,11 +2,13 @@ package handlers
 
 import (
 	"sync"
+	"time"
 
 	. "github.com/redis-go/internal/aof"
 	. "github.com/redis-go/pkg/resp"
 )
 
+// Handlers map with command
 var Handlers = map[string]func(Value, *Aof) Value{
 	"PING":    PingHandler,
 	"SET":     SetHandler,
@@ -28,5 +30,8 @@ var KeyValueStoreLock = sync.RWMutex{}
 var HashStore = make(map[string]map[string]string)
 var HashStoreLock = sync.RWMutex{}
 
-var ZADDsLock sync.RWMutex
+var ZADDStoreLock sync.RWMutex
 var ZADDStore = make(map[string]map[string]float64)
+
+var ExpiryStore = map[string]time.Time{}
+var ExpirySToreLock = sync.RWMutex{}

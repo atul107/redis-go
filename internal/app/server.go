@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"strings"
+	"time"
 
 	. "github.com/redis-go/config"
 	. "github.com/redis-go/internal/aof"
@@ -28,6 +29,8 @@ func Run(config *Config) {
 		return
 	}
 	defer aof.Close()
+
+	go expirationCheck(aof)
 
 	// aof.Read(KeyValueStore, ZADDStore, func(value Value) {
 	// 	command := strings.ToUpper(value.Array[0].Bulk)
@@ -87,5 +90,30 @@ func handleConnection(conn net.Conn, aof *Aof) {
 
 		result := handler(value, aof)
 		writer.WriteValue(result)
+	}
+}
+
+func expirationCheck(aof *Aof) {
+	for {
+		time.Sleep(1 * time.Second)
+
+		currentTimestamp := time.Now()
+
+		ExpirySToreLock.Lock()
+		for key, expireTime := range ExpiryStore {
+			if currentTimestamp.After(expireTime) {
+				KeyValueStoreLock.Lock()
+				delete(KeyValueStore, key)
+				KeyValueStoreLock.Unlock()
+
+				delete(ExpiryStore, key)
+
+				aof.Write(Value{Typ: "array", Array: []Value{
+					{Typ: "bulk", Bulk: "DEL"},
+					{Typ: "bulk", Bulk: key},
+				}})
+			}
+		}
+		ExpirySToreLock.Unlock()
 	}
 }

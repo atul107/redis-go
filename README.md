@@ -73,3 +73,4 @@ HGET user:1 name
 - Fix data persistence flow
 - Add logs
 - Write test cases
+- Validate the order in ZADD

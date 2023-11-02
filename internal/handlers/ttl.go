@@ -16,18 +16,22 @@ func TTLHandler(value Value, aof *Aof) Value {
 
 	key := args[0].Bulk
 
-	ExpiresMu.RLock()
-	expirationTime, ok := Expires[key]
-	ExpiresMu.RUnlock()
+	ExpirySToreLock.RLock()
+	expirationTime, ok := ExpiryStore[key]
+	ExpirySToreLock.RUnlock()
 
 	if !ok {
-		return Value{Typ: "integer", Num: -2} // Key does not exist.
+		return Value{Typ: "integer", Num: -1} // Key does not exist.
 	}
 
 	remainingTime := int(expirationTime.Sub(time.Now()).Seconds())
 
 	if remainingTime < 0 {
-		return Value{Typ: "integer", Num: -1} // Key has no associated TTL.
+		// Key has already expired
+		ExpirySToreLock.Lock()
+		delete(ExpiryStore, key)
+		ExpirySToreLock.Unlock()
+		return Value{Typ: "integer", Num: -2} // Key has no associated TTL.
 	}
 
 	return Value{Typ: "integer", Num: remainingTime}
