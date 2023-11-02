@@ -7,6 +7,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// TTLHandler handles the "TTL" command.
 func TTLHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 
@@ -21,17 +22,16 @@ func TTLHandler(value Value, aof *Aof) Value {
 	ExpirySToreLock.RUnlock()
 
 	if !ok {
-		return Value{Typ: "integer", Num: -1} // Key does not exist.
+		return Value{Typ: "integer", Num: -1}
 	}
 
 	remainingTime := int(expirationTime.Sub(time.Now()).Seconds())
 
 	if remainingTime < 0 {
-		// Key has already expired
 		ExpirySToreLock.Lock()
 		delete(ExpiryStore, key)
 		ExpirySToreLock.Unlock()
-		return Value{Typ: "integer", Num: -2} // Key has no associated TTL.
+		return Value{Typ: "integer", Num: -2}
 	}
 
 	return Value{Typ: "integer", Num: remainingTime}

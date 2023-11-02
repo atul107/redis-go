@@ -60,17 +60,20 @@ PING hello
 SET mykey myvalue
 GET mykey
 DEL mykey
+EXPIRE mykey 10 XX
+EXPIRE mykey 10 NX 
+TTL mykey
 SET key:1 val-1
 SET key:2 val-2
 KEYS key:*
-HSET user:1 name "John"
+HSET user:1 name John
 HSET user:1 age 30
 HGET user:1 name
+ZADD myzset 1 one
+ZADD myzset 1 uno
 ```
 
 ## TODOs:
-- Add support for TTL and EXPIRE command
 - Fix data persistence flow
 - Add logs
 - Write test cases
-- Validate the order in ZADD

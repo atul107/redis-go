@@ -12,6 +12,7 @@ import (
 var SortedSets = map[string]map[string]float64{}
 var SortedSetsMu = sync.RWMutex{}
 
+// ZrangeHandler handles the "ZRANGE" command.
 func ZrangeHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 
@@ -21,7 +22,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 
 	setName := args[0].Bulk
 
-	// Check if the "BYSCORE" or "BYLEX" option is specified
 	var byScore bool
 	if len(args) > 3 {
 		if args[3].Bulk == "BYSCORE" {
@@ -31,19 +31,16 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		}
 	}
 
-	// Check if the "REV" option is specified
 	rev := false
 	if len(args) > 4 && args[4].Bulk == "REV" {
 		rev = true
 	}
 
-	// Initialize the member-score pairs
 	memberScores := []struct {
 		member string
 		score  float64
 	}{}
 
-	// Ensure the sorted set exists
 	ZADDStoreLock.RLock()
 	sortedSet, ok := ZADDStore[setName]
 	ZADDStoreLock.RUnlock()
@@ -52,7 +49,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		return Value{Typ: "array", Array: []Value{}}
 	}
 
-	// Collect member-score pairs
 	for member, score := range sortedSet {
 		memberScores = append(memberScores, struct {
 			member string
@@ -60,7 +56,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		}{member, score})
 	}
 
-	// Sort the member-score pairs by score or lexicographically
 	if byScore {
 		sort.SliceStable(memberScores, func(i, j int) bool {
 			return memberScores[i].score < memberScores[j].score
@@ -71,7 +66,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		})
 	}
 
-	// Check if the "LIMIT" option is specified
 	if len(args) > 5 && args[5].Bulk == "LIMIT" {
 		if len(args) < 8 {
 			return Value{Typ: "error", Str: "ERR wrong number of arguments for 'zrange' command with 'LIMIT'"}
@@ -90,7 +84,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 			return Value{Typ: "error", Str: "ERR invalid LIMIT count"}
 		}
 
-		// Apply the offset and count
 		if offset < 0 {
 			offset = len(memberScores) + offset
 		}
@@ -105,7 +98,6 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		memberScores = memberScores[offset : offset+count]
 	}
 
-	// Prepare the response with or without scores
 	members := []Value{}
 	for _, ms := range memberScores {
 		if byScore {

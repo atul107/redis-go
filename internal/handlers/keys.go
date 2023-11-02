@@ -7,6 +7,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// KeysHandler handles the "KEYS" command.
 func KeysHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 

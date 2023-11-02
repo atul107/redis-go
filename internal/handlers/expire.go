@@ -8,6 +8,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// ExpireHandler handles the "EXPIRE" command.
 func ExpireHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 

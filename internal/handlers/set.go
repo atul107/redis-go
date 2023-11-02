@@ -8,6 +8,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// SetHandler handles the "SET" command.
 func SetHandler(val Value, aof *Aof) Value {
 	args := val.Array[1:]
 

@@ -5,6 +5,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// DelHandler handles the "DEL" command.
 func DelHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 

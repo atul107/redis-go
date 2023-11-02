@@ -8,6 +8,7 @@ import (
 	. "github.com/redis-go/pkg/resp"
 )
 
+// ZaddHandler handles the "ZADD" command.
 func ZaddHandler(value Value, aof *Aof) Value {
 	args := value.Array[1:]
 
@@ -17,8 +18,8 @@ func ZaddHandler(value Value, aof *Aof) Value {
 
 	setName := args[0].Bulk
 	var memberExists bool
-	var ch bool                   // Flag to determine if the "CH" option is specified
-	var nx, xx, gt, lt, incr bool // Flags for "NX," "XX," "GT," "LT," and "INCR" options
+	var ch bool
+	var nx, xx, gt, lt, incr bool
 
 	for i := 1; i < len(args); i++ {
 		arg := args[i].Bulk
@@ -36,7 +37,6 @@ func ZaddHandler(value Value, aof *Aof) Value {
 		} else if arg == "INCR" {
 			incr = true
 		} else {
-			// Parse the member-score pairs and add them to the sorted set
 			if i+1 < len(args) {
 				scoreStr := arg
 				member := args[i+1].Bulk
@@ -45,18 +45,15 @@ func ZaddHandler(value Value, aof *Aof) Value {
 					return Value{Typ: "error", Str: "ERR invalid score"}
 				}
 
-				// Check if the member already exists in the sorted set
 				ZADDStoreLock.Lock()
 				if set, ok := ZADDStore[setName]; ok {
 					_, memberExists = set[member]
 
 					if (nx && memberExists) || (xx && !memberExists) {
-						// Handle "NX" and "XX" options
 						ZADDStoreLock.Unlock()
 						return Value{Typ: "integer", Num: 0}
 					}
 
-					// Handle "INCR" option
 					if incr {
 						if !memberExists {
 							ZADDStoreLock.Unlock()
@@ -66,13 +63,11 @@ func ZaddHandler(value Value, aof *Aof) Value {
 					}
 				}
 
-				// Handle "GT" and "LT" options
 				if (gt && lt) || (gt && score == 0) || (lt && score == 0) {
 					ZADDStoreLock.Unlock()
 					return Value{Typ: "error", Str: "ERR syntax error"}
 				}
 
-				// Add the member and score to the sorted set
 				if gt {
 					newSet := make(map[string]float64)
 					for k, v := range ZADDStore[setName] {
@@ -100,7 +95,6 @@ func ZaddHandler(value Value, aof *Aof) Value {
 				ZADDStore[setName][member] = score
 				ZADDStoreLock.Unlock()
 
-				// Record the ZADD command in the AOF
 				if !ch || (ch && !memberExists) {
 					aof.Write(Value{Typ: "array", Array: []Value{
 						{Typ: "bulk", Bulk: "ZADD"},
