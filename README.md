@@ -71,9 +71,14 @@ HSET user:1 age 30
 HGET user:1 name
 ZADD myzset 1 one
 ZADD myzset 1 uno
+ZADD z 1 a 2 b -1 c
+ZRANGE z 0 -1
 ```
+
+### Running tests
+1. Start server by running `make server` command inside the project root directory
+2. Run test cases by using `make test` command in another terminal in the project root directory
 
 ## TODOs:
 - Fix data persistence flow
 - Add logs
-- Write test cases

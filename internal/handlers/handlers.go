@@ -30,8 +30,8 @@ var KeyValueStoreLock = sync.RWMutex{}
 var HashStore = make(map[string]map[string]string)
 var HashStoreLock = sync.RWMutex{}
 
-var ZADDStoreLock sync.RWMutex
-var ZADDStore = make(map[string]map[string]float64)
+var SortedSetStore = make(map[string]*SortedSet)
+var SortedSetStoreLock = sync.RWMutex{}
 
 var ExpiryStore = map[string]time.Time{}
 var ExpirySToreLock = sync.RWMutex{}

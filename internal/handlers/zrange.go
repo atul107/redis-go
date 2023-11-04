@@ -3,14 +3,10 @@ package handlers
 import (
 	"sort"
 	"strconv"
-	"sync"
 
 	. "github.com/redis-go/internal/aof"
 	. "github.com/redis-go/pkg/resp"
 )
-
-var SortedSets = map[string]map[string]float64{}
-var SortedSetsMu = sync.RWMutex{}
 
 // ZrangeHandler handles the "ZRANGE" command.
 func ZrangeHandler(value Value, aof *Aof) Value {
@@ -22,7 +18,7 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 
 	setName := args[0].Bulk
 
-	var byScore bool
+	var byScore bool = true
 	if len(args) > 3 {
 		if args[3].Bulk == "BYSCORE" {
 			byScore = true
@@ -36,34 +32,49 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 		rev = true
 	}
 
-	memberScores := []struct {
-		member string
-		score  float64
-	}{}
-
-	ZADDStoreLock.RLock()
-	sortedSet, ok := ZADDStore[setName]
-	ZADDStoreLock.RUnlock()
+	SortedSetStoreLock.RLock()
+	set, ok := SortedSetStore[setName]
+	SortedSetStoreLock.RUnlock()
 
 	if !ok {
 		return Value{Typ: "array", Array: []Value{}}
 	}
 
-	for member, score := range sortedSet {
-		memberScores = append(memberScores, struct {
+	startIndexStr := args[1].Bulk
+	endIndexStr := args[2].Bulk
+
+	start, err := strconv.Atoi(startIndexStr)
+	if err != nil {
+		return Value{Typ: "error", Str: "ERR invalid LIMIT offset"}
+	}
+
+	end, err := strconv.Atoi(endIndexStr)
+	if err != nil {
+		return Value{Typ: "error", Str: "ERR invalid LIMIT count"}
+	}
+
+	if end < 0 {
+		end = len(set.members) + end
+	}
+	if end > len(set.members)-1 {
+		end = len(set.members) - 1
+	}
+	memberScores := make([]struct {
+		member string
+		score  float64
+	}, end-start+1)
+
+	for i := start; i <= end; i++ {
+		memberScores[i] = struct {
 			member string
 			score  float64
-		}{member, score})
+		}{set.members[i], set.scores[i]}
 	}
 
 	if byScore {
-		sort.SliceStable(memberScores, func(i, j int) bool {
-			return memberScores[i].score < memberScores[j].score
-		})
+		sortByScore(memberScores, rev)
 	} else {
-		sort.SliceStable(memberScores, func(i, j int) bool {
-			return memberScores[i].member < memberScores[j].member
-		})
+		sortByMember(memberScores, rev)
 	}
 
 	if len(args) > 5 && args[5].Bulk == "LIMIT" {
@@ -91,24 +102,61 @@ func ZrangeHandler(value Value, aof *Aof) Value {
 			offset = 0
 		}
 
-		if offset+count > len(memberScores) {
-			count = len(memberScores) - offset
+		if offset >= len(memberScores) || count <= 0 {
+			return Value{Typ: "array", Array: []Value{}}
 		}
 
-		memberScores = memberScores[offset : offset+count]
+		endIndex := offset + count
+		if endIndex > len(memberScores) {
+			endIndex = len(memberScores)
+		}
+
+		memberScores = memberScores[offset:endIndex]
 	}
 
-	members := []Value{}
-	for _, ms := range memberScores {
+	members := make([]Value, len(memberScores))
+	for i, ms := range memberScores {
 		if byScore {
-			members = append(members, Value{Typ: "bulk", Bulk: ms.member})
+			memberValue := Value{Typ: "bulk", Bulk: ms.member}
 			if rev {
-				members = append(members, Value{Typ: "bulk", Bulk: strconv.FormatFloat(ms.score, 'f', -1, 64)})
+				members[i] = Value{Typ: "bulk", Bulk: strconv.FormatFloat(ms.score, 'f', -1, 64)}
+			} else {
+				members[i] = memberValue
 			}
 		} else {
-			members = append(members, Value{Typ: "bulk", Bulk: ms.member})
+			members[i] = Value{Typ: "bulk", Bulk: ms.member}
 		}
 	}
 
 	return Value{Typ: "array", Array: members}
+}
+
+func sortByScore(memberScores []struct {
+	member string
+	score  float64
+}, reverse bool) {
+	if reverse {
+		sort.SliceStable(memberScores, func(i, j int) bool {
+			return memberScores[i].score > memberScores[j].score
+		})
+	} else {
+		sort.SliceStable(memberScores, func(i, j int) bool {
+			return memberScores[i].score < memberScores[j].score
+		})
+	}
+}
+
+func sortByMember(memberScores []struct {
+	member string
+	score  float64
+}, reverse bool) {
+	if reverse {
+		sort.SliceStable(memberScores, func(i, j int) bool {
+			return memberScores[i].member > memberScores[j].member
+		})
+	} else {
+		sort.SliceStable(memberScores, func(i, j int) bool {
+			return memberScores[i].member < memberScores[j].member
+		})
+	}
 }
